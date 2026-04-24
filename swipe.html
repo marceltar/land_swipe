@@ -16,7 +16,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:-apple-system,BlinkMa
 #hdr-bar{flex:1;height:4px;background:#374151;border-radius:2px}
 #hdr-fill{height:100%;background:#fcd34d;border-radius:2px;transition:width .3s;width:0%}
 #undo-btn{background:none;border:none;color:#9ca3af;font-size:20px;cursor:pointer;padding:4px 2px;line-height:1;flex-shrink:0}
-#map-wrap{position:fixed;top:50px;left:0;right:0;height:45vh;z-index:1}
+#map-wrap{position:fixed;top:50px;left:0;right:0;height:45vh;z-index:1;will-change:transform;transform-origin:center bottom}
 #map{width:100%;height:100%}
 /* swipe overlay sits over the detail panel, not the map */
 #swipe-ol{position:fixed;top:calc(50px + 45vh);left:0;right:0;bottom:70px;
@@ -206,10 +206,18 @@ async function submitDecisions() {
   }
 }
 
-// Tinder-style swipe: detail panel physically follows the finger
+// Tinder-style swipe: map + detail move together with the finger
+const mapWrap = document.getElementById('map-wrap');
+
+function _setTransform(tx, rot, transition) {
+  const t = transition || 'none';
+  const v = 'translateX(' + tx + ') rotate(' + rot + ')';
+  mapWrap.style.transition = t; mapWrap.style.transform = v;
+  detail.style.transition  = t; detail.style.transform  = v;
+}
+
 function _applyDrag(dx) {
-  const rot = dx * 0.06;
-  detail.style.transform = 'translateX(' + dx + 'px) rotate(' + rot + 'deg)';
+  _setTransform(dx + 'px', (dx * 0.06) + 'deg');
   const pct = Math.min(Math.abs(dx) / 120, 1);
   if (dx < -10) {
     ol.className = 'rej'; ol.textContent = '✕'; ol.style.opacity = pct;
@@ -221,8 +229,7 @@ function _applyDrag(dx) {
 }
 
 function _resetCard() {
-  detail.style.transition = 'none';
-  detail.style.transform  = 'translateX(0) rotate(0deg)';
+  _setTransform('0', '0deg');
   ol.className = ''; ol.textContent = ''; ol.style.opacity = 0;
 }
 
@@ -231,7 +238,8 @@ detail.addEventListener('touchstart', e => {
   _tyStart = e.touches[0].clientY;
   _dragging = true;
   _horizontal = false;
-  detail.style.transition = 'none';
+  mapWrap.style.transition = 'none';
+  detail.style.transition  = 'none';
 }, {passive:true});
 
 detail.addEventListener('touchmove', e => {
@@ -254,17 +262,15 @@ detail.addEventListener('touchend', e => {
   if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5) {
     // fly off screen, then load next candidate
     const dir = dx < 0 ? -1 : 1;
-    detail.style.transition = 'transform 0.28s ease-in';
-    detail.style.transform  = 'translateX(' + (dir * 110) + 'vw) rotate(' + (dir * 22) + 'deg)';
+    _setTransform((dir * 110) + 'vw', (dir * 22) + 'deg', 'transform 0.28s ease-in');
     ol.style.opacity = 0;
     setTimeout(() => {
       _resetCard();
       decide(dx < 0 ? 'rejected' : 'shortlist');
     }, 280);
   } else {
-    // snap back to centre
-    detail.style.transition = 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)';
-    detail.style.transform  = 'translateX(0) rotate(0deg)';
+    // snap back to centre with a little bounce
+    _setTransform('0', '0deg', 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)');
     ol.style.opacity = 0;
     ol.className = ''; ol.textContent = '';
   }
